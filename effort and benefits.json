@@ -1,0 +1,289 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "autosize": {"type": "fit", "resize": true, "contains": "padding"},
+  "padding": {"left": 5, "right": 84, "top": 34, "bottom": 56},
+  "background": "transparent",
+
+  "signals": [
+    {"name": "rowHeight", "value": 56},
+    {"name": "barH", "value": 14},
+    {"name": "barGap", "value": 4},
+    {"name": "height", "update": "length(data('dataset')) * rowHeight"},
+    {"name": "dataMax", "update": "data('stats')[0] ? data('stats')[0].dmax : 1"},
+    {"name": "maxEffort", "update": "data('stats')[0] ? data('stats')[0].me : 0"},
+    {"name": "domainMax", "update": "max(dataMax * 1.12, 1)"},
+    {"name": "ceilingFits", "update": "maxEffort <= domainMax * 0.9"},
+    {"name": "railEnd", "update": "ceilingFits ? scale('x', maxEffort) : width"},
+    {"name": "modeLabel", "update": "ceilingFits ? 'scaled to capacity' : 'scaled to data'"}
+  ],
+
+  "data": [
+    {"name": "dataset"},
+    {
+      "name": "stats",
+      "source": "dataset",
+      "transform": [
+        {
+          "type": "aggregate",
+          "fields": ["Effort", "Benefit", "MaxEffort"],
+          "ops": ["max", "max", "max"],
+          "as": ["emax", "bmax", "me"]
+        },
+        {"type": "formula", "expr": "max(datum.emax, datum.bmax)", "as": "dmax"}
+      ]
+    }
+  ],
+
+  "scales": [
+    {
+      "name": "x",
+      "type": "linear",
+      "domain": {"signal": "[0, domainMax]"},
+      "range": [0, {"signal": "width"}],
+      "zero": true,
+      "clamp": true
+    },
+    {
+      "name": "y",
+      "type": "band",
+      "domain": {"data": "dataset", "field": "Quarter"},
+      "range": [0, {"signal": "height"}],
+      "padding": 0
+    }
+  ],
+
+  "axes": [
+    {
+      "orient": "left",
+      "scale": "y",
+      "domain": false,
+      "ticks": false,
+      "labelPadding": 10,
+      "labelFontSize": 13,
+      "labelFontWeight": 500,
+      "labelColor": "#3d3d3a"
+    },
+    {
+      "orient": "top",
+      "scale": "x",
+      "domain": false,
+      "ticks": false,
+      "grid": false,
+      "labels": false,
+      "title": "Hours",
+      "titleFontSize": 12,
+      "titleFontWeight": 400,
+      "titleColor": "#898781",
+      "titleAlign": "left",
+      "titleAnchor": "start",
+      "titlePadding": 14
+    }
+  ],
+
+  "marks": [
+    {
+      "type": "rect",
+      "name": "capacityRail",
+      "from": {"data": "dataset"},
+      "encode": {
+        "update": {
+          "x": {"value": 0},
+          "x2": {"signal": "railEnd"},
+          "y": {"signal": "scale('y', datum.Quarter) + (rowHeight - barH*2 - barGap)/2"},
+          "height": {"signal": "barH"},
+          "fill": {"value": "#F1EFE8"},
+          "cornerRadius": {"value": 3}
+        }
+      }
+    },
+    {
+      "type": "rect",
+      "name": "effortBar",
+      "from": {"data": "dataset"},
+      "encode": {
+        "update": {
+          "x": {"value": 0},
+          "x2": {"scale": "x", "field": "Effort"},
+          "y": {"signal": "scale('y', datum.Quarter) + (rowHeight - barH*2 - barGap)/2"},
+          "height": {"signal": "barH"},
+          "fill": {"value": "#2a78d6"},
+          "cornerRadius": {"value": 3},
+          "tooltip": {
+            "signal": "{'Quarter': datum.Quarter, 'Effort (hrs)': format(datum.Effort, ',.0f'), 'Max effort (hrs)': format(datum.MaxEffort, ',.0f'), 'Capacity used': format(datum.Effort / datum.MaxEffort, '.0%')}"
+          }
+        }
+      }
+    },
+    {
+      "type": "rect",
+      "name": "benefitBar",
+      "from": {"data": "dataset"},
+      "encode": {
+        "update": {
+          "x": {"value": 0},
+          "x2": {"scale": "x", "field": "Benefit"},
+          "y": {"signal": "scale('y', datum.Quarter) + (rowHeight - barH*2 - barGap)/2 + barH + barGap"},
+          "height": {"signal": "barH"},
+          "fill": {"value": "#eb6834"},
+          "cornerRadius": {"value": 3},
+          "tooltip": {
+            "signal": "{'Quarter': datum.Quarter, 'Benefit (hrs)': format(datum.Benefit, ',.0f'), 'Effort (hrs)': format(datum.Effort, ',.0f'), 'Net (hrs)': format(datum.Benefit - datum.Effort, '+,.0f')}"
+          }
+        }
+      }
+    },
+    {
+      "type": "path",
+      "name": "truncationChevron",
+      "from": {"data": "dataset"},
+      "encode": {
+        "update": {
+          "x": {"signal": "width + 8"},
+          "y": {"signal": "scale('y', datum.Quarter) + rowHeight/2"},
+          "path": {"value": "M0,-4 L5,0 L0,4"},
+          "stroke": {"value": "#898781"},
+          "strokeWidth": {"value": 1},
+          "strokeCap": {"value": "round"},
+          "strokeJoin": {"value": "round"},
+          "fill": {"value": null},
+          "opacity": {"signal": "ceilingFits ? 0 : 1"}
+        }
+      }
+    },
+    {
+      "type": "rule",
+      "name": "maxEffortLine",
+      "encode": {
+        "update": {
+          "x": {"signal": "scale('x', maxEffort)"},
+          "y": {"value": -6},
+          "y2": {"signal": "height + 6"},
+          "stroke": {"value": "#d03b3b"},
+          "strokeWidth": {"value": 1},
+          "strokeDash": {"value": [4, 3]},
+          "opacity": {"signal": "ceilingFits ? 1 : 0"}
+        }
+      }
+    },
+    {
+      "type": "text",
+      "name": "maxEffortLabel",
+      "encode": {
+        "update": {
+          "x": {"signal": "scale('x', maxEffort)"},
+          "y": {"signal": "height + 24"},
+          "text": {"value": "Max effort"},
+          "align": {"value": "center"},
+          "fontSize": {"value": 12},
+          "fill": {"value": "#898781"},
+          "opacity": {"signal": "ceilingFits ? 1 : 0"}
+        }
+      }
+    },
+    {
+      "type": "text",
+      "name": "utilisationLabel",
+      "from": {"data": "dataset"},
+      "encode": {
+        "update": {
+          "x": {"signal": "width + 76"},
+          "y": {"signal": "scale('y', datum.Quarter) + rowHeight/2"},
+          "text": {"signal": "format(datum.Effort / datum.MaxEffort, '.0%')"},
+          "align": {"value": "right"},
+          "baseline": {"value": "middle"},
+          "fontSize": {"value": 13},
+          "fontWeight": {"value": 500},
+          "fill": {"value": "#3d3d3a"}
+        }
+      }
+    },
+    {
+      "type": "text",
+      "name": "utilisationHeader",
+      "encode": {
+        "update": {
+          "x": {"signal": "width + 76"},
+          "y": {"value": -20},
+          "text": {"value": "Capacity used"},
+          "align": {"value": "right"},
+          "fontSize": {"value": 12},
+          "fill": {"value": "#898781"}
+        }
+      }
+    },
+    {
+      "type": "text",
+      "name": "modeIndicator",
+      "encode": {
+        "update": {
+          "x": {"signal": "width + 76"},
+          "y": {"signal": "height + 44"},
+          "text": {"signal": "modeLabel"},
+          "align": {"value": "right"},
+          "fontSize": {"value": 11},
+          "fill": {"value": "#898781"}
+        }
+      }
+    },
+    {
+      "type": "rect",
+      "encode": {
+        "update": {
+          "x": {"value": 0}, "width": {"value": 10},
+          "y": {"signal": "height + 38"}, "height": {"value": 10},
+          "fill": {"value": "#2a78d6"}, "cornerRadius": {"value": 2}
+        }
+      }
+    },
+    {
+      "type": "text",
+      "encode": {
+        "update": {
+          "x": {"value": 18}, "y": {"signal": "height + 43"},
+          "text": {"value": "Effort spent"}, "baseline": {"value": "middle"},
+          "fontSize": {"value": 12}, "fill": {"value": "#898781"}
+        }
+      }
+    },
+    {
+      "type": "rect",
+      "encode": {
+        "update": {
+          "x": {"value": 110}, "width": {"value": 10},
+          "y": {"signal": "height + 38"}, "height": {"value": 10},
+          "fill": {"value": "#eb6834"}, "cornerRadius": {"value": 2}
+        }
+      }
+    },
+    {
+      "type": "text",
+      "encode": {
+        "update": {
+          "x": {"value": 128}, "y": {"signal": "height + 43"},
+          "text": {"value": "Benefit returned"}, "baseline": {"value": "middle"},
+          "fontSize": {"value": 12}, "fill": {"value": "#898781"}
+        }
+      }
+    },
+    {
+      "type": "rect",
+      "encode": {
+        "update": {
+          "x": {"value": 240}, "width": {"value": 10},
+          "y": {"signal": "height + 38"}, "height": {"value": 10},
+          "fill": {"value": "#F1EFE8"}, "cornerRadius": {"value": 2}
+        }
+      }
+    },
+    {
+      "type": "text",
+      "encode": {
+        "update": {
+          "x": {"value": 258}, "y": {"signal": "height + 43"},
+          "text": {"value": "Unused capacity"}, "baseline": {"value": "middle"},
+          "fontSize": {"value": 12}, "fill": {"value": "#898781"}
+        }
+      }
+    }
+  ]
+}
